@@ -431,11 +431,3 @@ kernel8.img
 
 - ドライバ
 - ネットワークスタック
-
----
-
-<div align="center">
-
-**Built with ❤️ for Raspberry Pi Bare-Metal Development**
-
-</div>
