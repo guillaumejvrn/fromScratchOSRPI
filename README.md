@@ -1,174 +1,276 @@
-# PepitOS 🍓💻
-> **Bare-Metal 64-bit (AArch64) Operating System from Scratch for Raspberry Pi 4**
+Pas de souci, voici le contenu brut exact du fichier `README.md` bilingue. Tu peux simplement copier-coller ce bloc dans ton éditeur (VS Code, Vim, etc.) et l'enregistrer sous le nom **`README.md`** à la racine de ton projet :
 
-PepitOS est un noyau d'système d'exploitation *bare-metal* développé à partir de zéro en C (C11) et Assembleur ARM64 pour le SoC Broadcom BCM2711 (Raspberry Pi 4 Model B).
+```markdown
+# Custom 64-bit Bare-Metal Operating System / 64ビットベアメタルOS開発 🍓💻
 
-Ce projet explore la programmation système bas niveau, la manipulation directe de registres matériels (MMIO), le protocole d'IPC Mailbox avec le GPU VideoCore et le rendu graphique sur Framebuffer HDMI sans bibliothèque C standard (`-nostdlib`, `-freestanding`).
-
----
-
-## 📋 Table des matières
-
-- [Fonctionnalités & Points forts](#-fonctionnalités--points-forts)
-- [Aperçu Matériel & Architecture](#-aperçu-matériel--architecture)
-- [Structure du Projet](#-structure-du-projet)
-- [Outils & Prérequis](#-outils--prérequis)
-- [Compilation & Exécution](#-compilation--exécution)
-  - [1. Compilation](#1-compilation)
-  - [2. Test sous QEMU](#2-test-sous-qemu)
-  - [3. Déploiement sur Raspberry Pi 4 réel](#3-déploiement-sur-raspberry-pi-4-réel)
-- [Détails Techniques & Séquence de Boot](#-détails-techniques--séquence-de-boot)
-  - [Séquence de Démarrage (`src/boot.s`)](#séquence-de-démarrage-srcboots)
-  - [Mailbox VideoCore & Framebuffer (`src/drivers/framebuffer.c`)](#mailbox-videocore--framebuffer-srcdriversframebufferc)
-  - [Différence de couleurs : QEMU vs Vrai Matériel](#différence-de-couleurs--qemu-vs-vrai-matériel)
-- [Roadmap & Prochaines étapes](#-roadmap--prochaines-étapes)
+[ English ] | [ 日本語 ]
 
 ---
 
-## ✨ Fonctionnalités & Points forts
+## 🇬🇧 English
 
-- **Architecture cible** : AArch64 (ARMv8-A, mode 64 bits).
-- **Gestion des cœurs CPU** : Initialisation du Cœur 0 et mise en veille basse consommation (`wfe`) des Cœurs 1 à 3.
-- **Configuration Mémoire** : Script de liaison personnalisé (`link.ld`) plaçant le point d'entrée à `0x80000`, paramétrant la pile (Stack Pointer) sous `0x80000` et nettoyant la section `.bss`.
-- **Communication Inter-Processeurs (IPC)** : Protocole de tags de propriété VideoCore Mailbox sur le canal 8.
-- **Moteur Graphique Framebuffer** : Affichage 1024x768 @ 32-bit ARGB avec effacement de l'écran et dessin pixel par pixel.
+### Overview
+A 64-bit (AArch64) bare-metal operating system kernel built from scratch in C and ARM64 Assembly for the Broadcom BCM2711 SoC (Raspberry Pi 4 Model B)[cite: 1, 3]. The project explores low-level system programming, bare-metal hardware interaction, Mailbox IPC protocols with the VideoCore GPU, and direct Framebuffer graphics rendering without standard C libraries (`-nostdlib`, `-freestanding`)[cite: 1, 3].
 
 ---
 
-## 🔬 Aperçu Matériel & Architecture
-
-| Composant | Spécification |
-| :--- | :--- |
-| **Carte cible** | Raspberry Pi 4 Model B |
-| **SoC** | Broadcom BCM2711 (Quad-core Cortex-A72 @ 1.5GHz) |
-| **Architecture** | AArch64 / ARMv8-A |
-| **Adresse Base MMIO** | `0xFE000000` |
-| **Adresse Registres Mailbox** | `0xFE00B880` (`PERIPHERAL_BASE + 0x0000B880`) |
-| **Alias Bus VideoCore** | `0xC0000000` (Masque d'accès RAM non-cachée par le GPU) |
-| **Masque d'Adresse ARM** | `0x3FFFFFFF` (Convertit l'adresse bus GPU en adresse physique ARM) |
-
----
-
-## 📁 Structure du Projet
-
+### Project Structure
 ```text
-fromScratchOSRPI/
-├── Makefile              # Système de build générant kernel8.img
-├── link.ld               # Script de liaison AArch64 (adresse 0x80000)
-├── build.sh              # Script de compilation propre (make clean && make)
-├── run.sh                # Script de compilation et lancement sous QEMU
-├── README.md             # Documentation du projet
-├── boot_files/           # Firmwares Broadcom & Device Tree pour Pi 4
-│   ├── bcm2711-rpi-4-b.dtb # Fichier DTB (requis pour init HDMI & PMIC)
-│   ├── config.txt        # Configuration de boot (arm_64bit=1, hdmi_force_hotplug)
-│   ├── fixup4.dat        # Table de fixup mémoire SDRAM du VideoCore
-│   └── start4.elf        # Firmware GPU Broadcom VideoCore VI
-└── src/                  # Code source du noyau
-    ├── boot.s            # Point d'entrée assembleur AArch64
-    ├── main.c            # Point d'entrée C & boucle principale
+/
+├── Makefile
+├── link.ld
+├── build.sh / run.sh
+├── boot_files/           # Firmware, config.txt & bcm2711-rpi-4-b.dtb
+└── src/
+    ├── boot.s            # AArch64 entry point (stack, core 0 filter, BSS zeroing)
+    ├── main.c            # Kernel main logic & graphics test
     └── drivers/
-        ├── framebuffer.h # En-tête des fonctions Framebuffer
-        └── framebuffer.c # Pilote Mailbox BCM2711 et moteur de rendu
+        └── framebuffer.c # BCM2711 Mailbox driver & pixel renderer
+
 ```
 
 ---
 
-## 🛠️ Outils & Prérequis
+### Prerequisites & Toolchain
 
-Pour compiler et exécuter PepitOS, installez la chaîne de compilation croisée AArch64 et QEMU (macOS ou Linux) :
+* **Cross-Compiler**: `aarch64-elf-gcc`, `aarch64-elf-ld`, `aarch64-elf-objcopy` (or `aarch64-linux-gnu-*`)
 
-- **GCC Cross-Compiler** : `aarch64-elf-gcc`, `aarch64-elf-ld`, `aarch64-elf-objcopy`
-- **Émulateur** : `qemu-system-aarch64`
-- **Utilitaires** : `make`, `bash`
+
+* **Emulator**: `qemu-system-aarch64`
+
+* **Build Tools**: `make`, `bash`
+
 
 ---
 
-## 🚀 Compilation & Exécution
+### Building & Running
 
-### 1. Compilation
-
-Pour compiler le noyau et générer le binaire brut `kernel8.img` :
+#### 1. Compilation
 
 ```bash
 chmod +x build.sh run.sh
 ./build.sh
+# or manually: make clean && make
+
 ```
 
-Ou manuellement :
-
-```bash
-make clean
-make
-```
-
----
-
-### 2. Test sous QEMU
-
-Pour exécuter le noyau dans l'émulateur QEMU Raspberry Pi 4 :
+#### 2. Running in QEMU
 
 ```bash
 ./run.sh
+
 ```
 
-*(Commande exécutée : `qemu-system-aarch64 -M raspi4b -kernel kernel8.img`)*
+#### 3. Deployment on Physical Raspberry Pi 4
+
+1. Format your MicroSD card or USB drive with a **primary FAT32 partition of approximately 1 GB**.
+
+
+2. Copy all firmware files from `boot_files/` (`start4.elf`, `fixup4.dat`, `bcm2711-rpi-4-b.dtb`, `config.txt`) to the root of the partition.
+
+
+3. Copy the compiled **`kernel8.img`** executable to the root.
+
+
+4. Insert into the Raspberry Pi 4 and power on with an HDMI 0 display connected.
+
+
 
 ---
 
-### 3. Déploiement sur Raspberry Pi 4 réel
+### Implementation Status & Technical Roadmap
 
-Pour démarrer sur la carte physique (carte MicroSD ou SSD USB) :
+#### ✅ Implemented
 
-1. Formatez la partition de démarrage au format **FAT32**.
-2. Copiez tous les fichiers du dossier `boot_files/` à la racine de la carte :
-   - `start4.elf`
-   - `fixup4.dat`
-   - `bcm2711-rpi-4-b.dtb`
-   - `config.txt`
-3. Copiez le fichier **`kernel8.img`** généré à la racine de la carte.
-4. Insérez la carte dans le Pi 4 et connectez un écran sur le port **HDMI 0**.
+* **AArch64 Bare-Metal Bootloader (`boot.s`)**: Core 0 execution filtering, putting secondary cores (1–3) to sleep (`wfe`), stack setup below `0x80000`, and `.bss` section zero-initialization.
 
-> ⚠️ **Note importante** : Le firmware VideoCore (`start4.elf`) exige impérativement la présence du fichier Device Tree `bcm2711-rpi-4-b.dtb` pour initialiser le contrôleur d'alimentation (PMIC), les horloges et la sortie HDMI avant de donner la main au processeur ARM64 à l'adresse `0x80000`.
+
+* **Linker Configuration (`link.ld`)**: Custom memory mapping setting kernel load address at `0x80000`.
+
+
+* **BCM2711 VideoCore Mailbox Protocol**: Inter-Process Communication (IPC) via MMIO Property Mailbox Channel 8.
+
+
+* **Framebuffer Driver (`framebuffer.c`)**: 1024x768 @ 32-bit ARGB graphic initialization and pixel drawing primitives.
+
+
+
+#### 📋 To Be Implemented
+
+1. **Hardware Interrupt & Exception Handling (Exceptions & IRQ)**
+
+* Configure the AArch64 Vector Table in assembly to handle hardware exceptions and timer interrupts.
+
+
+
+
+2. **Keyboard Driver (UART / USB)**
+
+* Implement input processing via UART/USB to connect user input to graphic outputs (e.g., interactive text shell or a mini breakout game).
+
+
+
+
+3. **Dynamic Memory Allocation (`malloc` / Heap Allocator)**
+
+* Build a free-list heap memory manager to distribute system RAM dynamically for complex data structures.
+
+
+
+
+4. **MMU & Virtual Memory Paging (Memory Management Unit)**
+
+* Configure translation page tables, enable L1/L2 CPU caches cleanly, and isolate kernel memory space.
+
+
+
+
+5. **Multitasking & Scheduler**
+
+* Implement Process Control Blocks (PCB), CPU register context switching, and a Round-Robin task scheduler.
+
+
+
+
+6. **Network Stack (Networking Layer - Optional)**
+
+* Driver setup and network protocol processing if time permits.
+
+
+
+
 
 ---
 
-## 🔍 Détails Techniques & Séquence de Boot
+## 🇯🇵 日本語
 
-### Séquence de Démarrage (`src/boot.s`)
+### 概要
 
-1. **Filtre Multi-cœur** : Lecture du registre `mpidr_el1`. Si l'ID du cœur est différent de `0`, le cœur est mis en boucle d'attente (`wfe`).
-2. **Initialisation de la Pile** : Le pointeur de pile `sp` est fixé à `0x80000`. La pile grandit vers les adresses basses (`0x7FFFF...`), évitant ainsi d'écraser le code du noyau situé à `0x80000`.
-3. **Nettoyage de la BSS** : Remise à zéro de la section `.bss` 8 octets par 8 octets (`str xzr`).
-4. **Passage au C** : Appel de la fonction `main()` via `bl main`.
+Broadcom BCM2711 SoC (Raspberry Pi 4 Model B) 向けに、C言語およびARM64アセンブリでゼロから開発している64ビット (AArch64) ベアメタルOSカーネルです。標準Cライブラリに依存せず (`-nostdlib`, `-freestanding`)、ベアメタル環境におけるハードウェア制御、VideoCore GPUとのMailbox通信、およびFramebufferによるグラフィック描画を実装しています。
 
 ---
 
-### Mailbox VideoCore & Framebuffer (`src/drivers/framebuffer.c`)
+### プロジェクト構造
 
-PepitOS communique avec le GPU via les tags de propriété sur le canal `8` du registre Mailbox MMIO.
+```text
+/
+├── Makefile
+├── link.ld
+├── build.sh / run.sh
+├── boot_files/           # ファームウェア、config.txt、bcm2711-rpi-4-b.dtb
+└── src/
+    ├── boot.s            # AArch64 エントリポイント (スタック設定、Core 0 フィルタ、.bss初期化)
+    ├── main.c            # カーネルメインロジック & 描画テスト
+    └── drivers/
+        └── framebuffer.c # BCM2711 Mailbox ドライバ & 描画処理
 
-1. **Préparation de la requête** : Création d'un buffer `mbox[36]` aligné sur 16 octets demandant une résolution physique et virtuelle de 1024x768 en 32-bit ARGB.
-2. **Masquage d'adresse Bus** : Ajout du masque `0xC0000000` à l'adresse du buffer pour informer le GPU de lire en RAM non-cachée.
-3. **Conversion d'adresse mémoire** : Le GPU renvoie l'adresse du Framebuffer. Application du masque `0x3FFFFFFF` pour obtenir l'adresse physique ARM accessible par le processeur.
+```
 
 ---
 
-### Différence de couleurs : QEMU vs Vrai Matériel
+### 開発環境・必要ツール
 
-| Environnement | Rendu Visuel | Raison Technique |
-| :--- | :--- | :--- |
-| **Vrai Raspberry Pi 4** | Fond **bleu** + Carré blanc 200x200 au centre | Ordre natif des canaux de couleur ARGB VideoCore |
-| **QEMU (`-M raspi4b`)** | Fond **rouge** + Carré blanc 200x200 au centre | Inversion des canaux Rouge/Bleu (RGB/BGR) dans le contrôleur d'affichage de QEMU |
+* **クロスコンパイラ**: `aarch64-elf-gcc`, `aarch64-elf-ld`, `aarch64-elf-objcopy` (または `aarch64-linux-gnu-*`)
+
+
+* **エミュレータ**: `qemu-system-aarch64`
+
+* **ビルドツール**: `make`, `bash`
+
 
 ---
 
-## 🎯 Roadmap & Prochaines étapes
+### ビルドと実行方法
 
-- [x] Initialisation bare-metal (`boot.s`) et environnement C.
-- [x] Pilote Mailbox GPU BCM2711.
-- [x] Allocation du Framebuffer et moteur de rendu graphique 32 bits.
-- [ ] **Police Bitmap 8x8** : Intégration de la table de caractères ASCII.
-- [ ] **Console de texte** : Fonctions `draw_char()`, `draw_string()`, gestion des saut de ligne `\n` et défilement de l'écran (*scroll*).
-- [ ] **Pilote UART PL011** : Communication série pour le debug.
-- [ ] **Gestion des Interruptions (GIC-400)** : Horloge système et timer matériel.
-- [ ] **MMU (Memory Management Unit)** : Tables de pages et activation du cache CPU.
+#### 1. コンパイル
+
+```bash
+chmod +x build.sh run.sh
+./build.sh
+# 手動ビルド: make clean && make
+
+```
+
+#### 2. QEMUでの実行
+
+```bash
+./run.sh
+
+```
+
+#### 3. Raspberry Pi 4 実機へのデプロイ
+
+1. MicroSDカードまたはUSBストレージ内に**約1GBのFAT32基本パーティション**を作成・フォーマットします。
+
+
+2. `boot_files/` 内の全ファイル (`start4.elf`, `fixup4.dat`, `bcm2711-rpi-4-b.dtb`, `config.txt`) をパーティションのルートにコピーします。
+
+
+3. 生成された **`kernel8.img`** をルートにコピーします。
+
+
+4. Raspberry Pi 4に挿入し、HDMI 0ポートにディスプレイを接続して起動します。
+
+
+
+---
+
+### 実装状況とロードマップ
+
+#### ✅ 実装済み機能
+
+* **AArch64 ベアメタルブートローダー (`boot.s`)**: Core 0 のみの実行フィルタリング、サブコア (Core 1-3) の待機処理 (`wfe`)、`0x80000` 以下へのスタックポインタ設定、`.bss` セクションのゼロ初期化。
+
+
+* **リンカスクリプト設定 (`link.ld`)**: カーネルの配置アドレスを `0x80000` に設定するメモリレイアウト定義。
+
+
+* **BCM2711 VideoCore Mailbox プロトコル**: MMIOプロパティ Mailbox チャンネル8経由でのGPU通信。
+
+
+* **フレームバッファードライバ (`framebuffer.c`)**: 1024x768 @ 32-bit ARGB グラフィック初期化およびピクセル描画処理。
+
+
+
+#### 📋 今後の実装予定 (ロードマップ)
+
+1. **ハードウェア割り込み & 例外処理 (Exceptions & IRQ)**
+
+* ARM64 アセンブリでベクターテーブル (Vector Table) を構築し、ハードウェア例外やタイマー割り込みをキャッチ。
+
+
+
+
+2. **キーボードドライバ (UART / USB)**
+
+* UARTやUSB経由での入力処理を実装し、インタラクティブなテキストシェルやミニゲームの入力を構築。
+
+
+
+
+3. **動的メモリ割り当て (`malloc` / ヒープアロケータ)**
+
+* フリーリストに基づくヒープメモリ管理機構を実装し、動的なデータ構造をサポート。
+
+
+
+
+4. **MMU & 仮想メモリページング (Memory Management Unit)**
+
+* 変換テーブル (Translation Tables) を設定して仮想メモリを構築し、CPUキャッシュの有効化とカーネル空間の保護を実施。
+
+
+
+
+5. **マルチタスク & スケジューラ (Multitasking & Scheduler)**
+
+* プロセス制御ブロック (PCB) の作成、CPUレジスタのコンテキストスイッチ、ラウンドロビン・スケジューラの実装。
+
+
+
+
+6. **ネットワークスルー (ネットワーク層 - 任意)**
+
+* 時間的余裕がある場合、ネットワークドライバおよびプロトコル処理の追加。
+
+
