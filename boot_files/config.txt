@@ -1,0 +1,12 @@
+# Force le mode 64 bits et spécifie le fichier binaire
+arm_64bit=1
+kernel=kernel8.img
+
+# Force la sortie HDMI 0 sans attendre de poignée de main complexe
+hdmi_force_hotplug=1
+hdmi_group=1
+hdmi_mode=16
+config_hdmi_boost=4
+
+# Activer l'UART (au cas où tu branches un câble série TX/RX)
+enable_uart=1

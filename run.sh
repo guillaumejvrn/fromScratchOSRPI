@@ -1,8 +1,8 @@
-#!/bin/bash 
+#!/bin/bash
+set -e
 
-# Clear previous compilation objects and rebuild the kernel image 
-make clean 
-make 
+# Recompile le noyau
+sh build.sh
 
-# Boot QEMU with a graphical window (HDMI emulation)
+# Lance la simulation QEMU de la Raspberry Pi 4 avec affichage graphique
 qemu-system-aarch64 -M raspi4b -kernel kernel8.img

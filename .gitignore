@@ -1,1 +1,12 @@
+# Dossier d'objets compilés
+build/
+
+# Image binaire produite
+kernel8.img
+
+# Fichiers système macOS
 .DS_Store
+
+# Configuration d'éditeurs
+.vscode/
+.idea/
