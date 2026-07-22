@@ -1,10 +1,11 @@
-# 🍓 Custom 64-bit Bare-Metal Operating System / 64ビットベアメタルOS開発
+# Custom 64-bit Bare-Metal Operating System / 64ビットベアメタルOS開発
 
 <div align="center">
 
 **English** | **日本語**
 
 Bare-metal AArch64 Operating System for the **Raspberry Pi 4 (BCM2711)**
+Youtube video : available soon
 
 </div>
 

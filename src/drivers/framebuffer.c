@@ -1,19 +1,20 @@
 #include "framebuffer.h"
+#include "font.h"
 
-// Registres MMIO BCM2711 (Raspberry Pi 4)
+// BCM2711 MMIO registers (Raspberry Pi 4)
 #define PERIPHERAL_BASE 0xFE000000
 
 #define MBOX_BASE    (PERIPHERAL_BASE + 0x0000B880)
 #define MBOX_READ    (MBOX_BASE + 0x00)
-#define MBOX_STATUS  (MBOX_BASE + 0x18) // Statut de lecture (MBOX 0)
+#define MBOX_STATUS  (MBOX_BASE + 0x18) // Read status (MBOX 0)
 #define MBOX_WRITE   (MBOX_BASE + 0x20)
-#define MBOX_STATUS1 (MBOX_BASE + 0x38) // Statut d'écriture (MBOX 1)
+#define MBOX_STATUS1 (MBOX_BASE + 0x38) // Write status (MBOX 1)
 
 #define MBOX_FULL    0x80000000
 #define MBOX_EMPTY   0x40000000
 #define MBOX_SUCCESS 0x80000000
 
-// Buffer Mailbox aligné sur 16 octets
+// Mailbox buffer aligned to 16 bytes
 volatile unsigned int __attribute__((aligned(16))) mbox[36];
 
 unsigned int *fb = 0;
@@ -28,17 +29,17 @@ static inline unsigned int mmio_read(unsigned long reg) {
 }
 
 int mbox_call(unsigned char channel) {
-    // 1. Ajouter l'alias VC Bus 0xC0000000 pour que le GPU puisse lire la RAM
+    // 1. Add the VC bus alias 0xC0000000 so the GPU can read RAM
     unsigned int addr = ((unsigned int)(unsigned long)&mbox) | 0xC0000000;
     unsigned int r = (addr & ~0xF) | (channel & 0xF);
 
-    // 2. Attendre que le buffer d'écriture (MBOX1 = 0x38) ne soit pas plein
+    // 2. Wait until the write buffer (MBOX1 = 0x38) is not full
     while (mmio_read(MBOX_STATUS1) & MBOX_FULL);
 
-    // 3. Envoyer la requête au GPU
+    // 3. Send the request to the GPU
     mmio_write(MBOX_WRITE, r);
 
-    // 4. Attendre la réponse sur la MBOX0 (0x18)
+    // 4. Wait for the response on MBOX0 (0x18)
     while (1) {
         while (mmio_read(MBOX_STATUS) & MBOX_EMPTY);
 
@@ -50,10 +51,10 @@ int mbox_call(unsigned char channel) {
 }
 
 int fb_init(void) {
-    // Nettoyage préventif du buffer mbox
+    // Clear the mailbox buffer before use
     for (int i = 0; i < 36; i++) mbox[i] = 0;
 
-    mbox[0] = 26 * 4;        // 26 éléments x 4 octets = 104 octets
+    mbox[0] = 26 * 4;     
     mbox[1] = 0;             // Request code
 
     // Physical resolution
@@ -76,11 +77,11 @@ int fb_init(void) {
     mbox[14] = 0;
     mbox[15] = 32;
 
-    // Allocate Framebuffer
+    // Allocate framebuffer
     mbox[16] = 0x00040001;
     mbox[17] = 8;
     mbox[18] = 0;
-    mbox[19] = 4096;         // Alignement demandé
+    mbox[19] = 4096;         // Requested alignment
     mbox[20] = 0;
 
     // Pitch
@@ -93,7 +94,6 @@ int fb_init(void) {
     mbox[25] = 0;
 
     if (mbox_call(8)) {
-        // On récupère le pointeur en mbox[19] et on applique le masque ARM
         fb = (unsigned int*)((unsigned long)mbox[19] & 0x3FFFFFFF);
         pitch = mbox[24];
         return 0;
@@ -113,5 +113,33 @@ void clear_screen(unsigned char r, unsigned char g, unsigned char b) {
         for (int x = 0; x < 1024; x++) {
             draw_pixel(x, y, r, g, b);
         }
+    }
+}
+
+void draw_char(char c, int x, int y, unsigned char r, unsigned char g, unsigned char b) {
+    unsigned char uc = (unsigned char)c;
+    if (uc >= 128) return;
+
+    for (int row = 0; row < 8; row++) {
+        unsigned char bitmask = font8x8[uc][row];
+        for (int col = 0; col < 8; col++) {
+            if (bitmask & (1 << (7 - col))) {
+                draw_pixel(x + col, y + row, r, g, b);
+            }
+        }
+    }
+}
+
+void draw_string(const char *str, int x, int y, unsigned char r, unsigned char g, unsigned char b) {
+    int start_x = x;
+    while (*str) {
+        if (*str == '\n') {
+            x = start_x;
+            y += 10; 
+        } else {
+            draw_char(*str, x, y, r, g, b);
+            x += 8; 
+        }
+        str++;
     }
 }

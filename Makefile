@@ -6,7 +6,7 @@ CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -Isrc -Isrc/drivers
 
 # Sources
 SRCS_S = src/boot.s
-SRCS_C = src/main.c src/drivers/framebuffer.c
+SRCS_C = src/main.c src/drivers/framebuffer.c src/drivers/font.c
 
 # Objets dans build/
 OBJS = $(patsubst src/%.s, build/%.o, $(SRCS_S)) \
