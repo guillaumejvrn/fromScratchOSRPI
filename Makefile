@@ -4,11 +4,11 @@ LD = aarch64-elf-ld
 
 CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -Isrc -Isrc/drivers
 
-# Sources
+# Source files
 SRCS_S = src/boot.s
-SRCS_C = src/main.c src/drivers/framebuffer.c src/drivers/font.c
+SRCS_C = src/main.c src/drivers/framebuffer.c src/drivers/font.c src/drivers/console.c
 
-# Objets dans build/
+# Object files placed inside build/
 OBJS = $(patsubst src/%.s, build/%.o, $(SRCS_S)) \
        $(patsubst src/%.c, build/%.o, $(SRCS_C))
 
