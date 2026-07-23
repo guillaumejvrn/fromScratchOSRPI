@@ -2,13 +2,15 @@ CC = aarch64-elf-gcc
 OBJCOPY = aarch64-elf-objcopy
 LD = aarch64-elf-ld
 
-CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -Isrc -Isrc/drivers
+CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -Isrc -Isrc/drivers -Isrc/kernel -Isrc/arch
 
-# Source files
-SRCS_S = src/boot.s
-SRCS_C = src/main.c src/drivers/framebuffer.c src/drivers/font.c src/drivers/console.c
+# Sources Assembleur
+SRCS_S = src/boot.s src/arch/vectors.s
 
-# Object files placed inside build/
+# Sources C
+SRCS_C = src/main.c src/drivers/framebuffer.c src/drivers/font.c src/drivers/console.c src/kernel/exception.c
+
+# Objets générés dans build/ conservant la sous-structure des dossiers
 OBJS = $(patsubst src/%.s, build/%.o, $(SRCS_S)) \
        $(patsubst src/%.c, build/%.o, $(SRCS_C))
 
@@ -20,10 +22,12 @@ kernel8.img: build/kernel8.elf
 build/kernel8.elf: $(OBJS)
 	$(LD) -T link.ld -o $@ $(OBJS)
 
+# Règle de compilation pour l'assembleur
 build/%.o: src/%.s
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Règle de compilation pour le C
 build/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
