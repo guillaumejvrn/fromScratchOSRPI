@@ -5,6 +5,11 @@
 **English** | **日本語**
 
 Bare-metal AArch64 Operating System for the **Raspberry Pi 4 (BCM2711)**
+
+</div>
+
+<div align="center">
+    
 Youtube video : available soon
 
 </div>
