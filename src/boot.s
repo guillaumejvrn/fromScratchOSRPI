@@ -3,11 +3,11 @@
 .global _start
 
 _start:
-    // 1. Lire l'ID du cœur CPU (MPIDR_EL1)
+    // 1. Read the CPU core ID (MPIDR_EL1)
     mrs     x0, mpidr_el1
     and     x0, x0, #3
 
-    // Park les cœurs 1, 2, 3 (Seul le cœur 0 démarre)
+    // Park cores 1, 2, and 3 (only core 0 starts)
     cbz     x0, master
 
 hang:
@@ -15,41 +15,41 @@ hang:
     b       hang
 
 master:
-    // 2. Vérifier si on est en EL2
+    // 2. Check whether we are in EL2
     mrs     x0, CurrentEL
     lsr     x0, x0, #2
     cmp     x0, #2
     b.ne    setup_el1
 
-    // 3. Configuration pour descendre de EL2 vers EL1
-    // Activer l'exécution 64-bit pour EL1
+    // 3. Configure transition from EL2 down to EL1
+    // Enable 64-bit execution for EL1
     mov     x0, #(1 << 31)          // Bit 31 (RW) = 1
     msr     hcr_el2, x0
 
-    // Définir l'état du processeur au retour en EL1 (EL1h + masquage des interruptions)
-    mov     x0, #0x3c5             // DAIF masqués, SPSR.M = EL1h
+    // Set the processor state for return to EL1 (EL1h + interrupts masked)
+    mov     x0, #0x3c5             // DAIF masked, SPSR.M = EL1h
     msr     spsr_el2, x0
 
-    // Définir le point d'atterrissage du saut (label setup_el1)
+    // Set the return address for the jump (label setup_el1)
     adr     x0, setup_el1
     msr     elr_el2, x0
-    eret                           // Effectue le saut atomique vers EL1 !
+    eret                           // Perform the atomic jump to EL1!
 
 setup_el1:
-    // 4. Initialiser le Pointeur de Pile SP_EL1 sous 0x80000
+    // 4. Initialize SP_EL1 stack pointer below 0x80000
     mov     x0, #0x80000
     mov     sp, x0
 
-    // 5. Activer le coprocesseur FPU / NEON en EL1
+    // 5. Enable the FPU / NEON coprocessor in EL1
     mov     x0, #(3 << 20)          // CPACR_EL1.FPEN = 0b11
     msr     cpacr_el1, x0
     isb
 
-    // 6. Enregistrer la Vector Table dans VBAR_EL1
+    // 6. Set the Vector Table base in VBAR_EL1
     ldr     x0, =exception_vector_table
     msr     vbar_el1, x0
 
-    // 7. Nettoyer la section .BSS
+    // 7. Clear the .BSS section
     ldr     x1, =__bss_start
     ldr     w2, =__bss_size
 
@@ -60,7 +60,6 @@ setup_el1:
     cbnz    w2, 1b
 
 2:
-    // 8. Sauter vers main()
+    // 8. Jump to main()
     bl      main
     b       hang
-    
