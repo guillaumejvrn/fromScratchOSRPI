@@ -2,6 +2,8 @@
 #include "console.h"
 #include <stdint.h>
 #include "timer.h"
+#include "kheap.h"
+#include "io.h"
 
 void main() {
     if (fb_init() == 0) {
@@ -24,6 +26,24 @@ void main() {
         }
 
         kprintf("\n[SUCCESS] Timer is working perfectly!\n");
+
+        kprintf("[OK] Vector Table & Timer Active.\n");
+        kprintf("[OK] Kernel Heap Initialized.\n\n");
+
+        // Test 1: 64-byte aligned allocation (Required for USB TRB command rings)
+        void *trb_ring = kmalloc_aligned(1024, 64);
+        kprintf(" TRB Ring (Align 64B)  : %p\n", trb_ring);
+
+        // Test 2: 4 KB aligned allocation (Required for xHCI scratchpad)
+        void *scratchpad = kmalloc_aligned(4096, 4096);
+        kprintf(" Scratchpad (Align 4KB): %p\n\n", scratchpad);
+
+        // Verify alignment math
+        if (((uintptr_t)trb_ring % 64 == 0) && ((uintptr_t)scratchpad % 4096 == 0)) {
+            kprintf("[SUCCESS] 100%% valid alignments for xHCI!\n");
+        } else {
+            kprintf("[ERROR] Memory alignment fault!\n");
+        }
     }
 
     while (1) {

@@ -7,13 +7,14 @@ CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -Isrc -Isrc/drivers -I
 # Sources Assembleur
 SRCS_S = src/boot.s src/arch/vectors.s
 
-# Sources C
+# Sources C (Ajout de src/kernel/kheap.c)
 SRCS_C = src/main.c \
          src/drivers/framebuffer.c \
          src/drivers/font.c \
          src/drivers/console.c \
          src/drivers/timer.c \
-         src/kernel/exception.c
+         src/kernel/exception.c \
+         src/kernel/kheap.c
 
 OBJS = $(patsubst src/%.s, build/%.o, $(SRCS_S)) \
        $(patsubst src/%.c, build/%.o, $(SRCS_C))
