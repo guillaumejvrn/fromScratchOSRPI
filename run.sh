@@ -5,4 +5,4 @@ set -e
 sh build.sh
 
 # Lance la simulation QEMU de la Raspberry Pi 4 avec affichage graphique
-qemu-system-aarch64 -M raspi4b -kernel kernel8.img
+qemu-system-aarch64 -M raspi4b -kernel kernel8.img -serial null -serial stdio

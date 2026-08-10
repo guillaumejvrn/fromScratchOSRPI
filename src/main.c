@@ -1,13 +1,21 @@
 #include "framebuffer.h"
 #include "console.h"
-#include <stdint.h>
 #include "timer.h"
 #include "kheap.h"
-#include "io.h"
+#include "pcie.h"
+#include "xhci.h"
+#include "uart.h"
+#include "arch/io.h"
+#include <stdint.h>
+
+static xhci_controller_t __attribute__((aligned(16))) usb_controller;
 
 void main() {
+    kheap_init();
+
     if (fb_init() == 0) {
         console_clear();
+        uart_init();
 
         kprintf("=========================================\n");
         kprintf(" PepitOS Bare-Metal Kernel Console\n");
@@ -16,37 +24,25 @@ void main() {
         kprintf(" Pitch: %d bytes/line\n", pitch);
         kprintf("=========================================\n\n");
 
-        kprintf("[OK] Running in EL1 (Kernel Mode).\n");
-        kprintf("[OK] Vector Table & FPU Initialized.\n");
+        pci_device_t usb_dev;
+        pcie_init(&usb_dev);
 
-        kprintf("Delay test (3s countdown):\n");
-        for (int i = 3; i > 0; i--) {
-            kprintf(" -> Pause %d sec...\n", i);
-            wait_msec(1000); // Wait exactly 1000 ms (1 second)
-        }
-
-        kprintf("\n[SUCCESS] Timer is working perfectly!\n");
-
-        kprintf("[OK] Vector Table & Timer Active.\n");
-        kprintf("[OK] Kernel Heap Initialized.\n\n");
-
-        // Test 1: 64-byte aligned allocation (Required for USB TRB command rings)
-        void *trb_ring = kmalloc_aligned(1024, 64);
-        kprintf(" TRB Ring (Align 64B)  : %p\n", trb_ring);
-
-        // Test 2: 4 KB aligned allocation (Required for xHCI scratchpad)
-        void *scratchpad = kmalloc_aligned(4096, 4096);
-        kprintf(" Scratchpad (Align 4KB): %p\n\n", scratchpad);
-
-        // Verify alignment math
-        if (((uintptr_t)trb_ring % 64 == 0) && ((uintptr_t)scratchpad % 4096 == 0)) {
-            kprintf("[SUCCESS] 100%% valid alignments for xHCI!\n");
-        } else {
-            kprintf("[ERROR] Memory alignment fault!\n");
+        if (usb_dev.bar0 != 0) {
+            if (xhci_init(&usb_controller, usb_dev.bar0) == 0) {
+                uint8_t slot_id = 0;
+                if (xhci_enable_slot(&usb_controller, &slot_id) == 0 && slot_id > 0) {
+                    kprintf("[USB] Slot ID %d attribue au clavier.\n", slot_id);
+                    xhci_setup_keyboard(&usb_controller, slot_id);
+                    kprintf("[OK] Clavier USB pret ! Tapez vos touches :\n\n> ");
+                } else {
+                    kprintf("[WARN] Impossible d'activer le slot USB.\n");
+                }
+            }
         }
     }
 
     while (1) {
-        // CPU Idle
+        xhci_poll_keyboard(&usb_controller);
+        dsb();
     }
 }

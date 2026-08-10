@@ -2,7 +2,7 @@ CC = aarch64-elf-gcc
 OBJCOPY = aarch64-elf-objcopy
 LD = aarch64-elf-ld
 
-CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -Isrc -Isrc/drivers -Isrc/kernel -Isrc/arch
+CFLAGS = -Wall -O2 -ffreestanding -nostdlib -nostartfiles -mno-strict-align -Isrc -Isrc/drivers -Isrc/kernel -Isrc/arch
 
 # Sources Assembleur
 SRCS_S = src/boot.s src/arch/vectors.s
@@ -13,6 +13,9 @@ SRCS_C = src/main.c \
          src/drivers/font.c \
          src/drivers/console.c \
          src/drivers/timer.c \
+         src/drivers/pcie.c \
+         src/drivers/xhci.c \
+         src/drivers/uart.c \
          src/kernel/exception.c \
          src/kernel/kheap.c
 

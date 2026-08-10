@@ -1,6 +1,6 @@
 #include "timer.h"
 
-// Pointeur vers l'adresse mémoire exacte du périphérique
+// Pointer to the device's exact MMIO base address
 static system_timer_t *timer = (system_timer_t *)SYSTEM_TIMER_BASE;
 
 uint64_t timer_get_ticks(void) {

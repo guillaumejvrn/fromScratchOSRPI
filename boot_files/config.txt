@@ -1,6 +1,7 @@
 # Force le mode 64 bits et spécifie le fichier binaire
 arm_64bit=1
 kernel=kernel8.img
+otg_mode=1
 
 # Force la sortie HDMI 0 sans attendre de poignée de main complexe
 hdmi_force_hotplug=1
